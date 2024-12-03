@@ -246,6 +246,19 @@ impl<T: DeviceBacking> GdmaDriver<T> {
             );
         }
 
+        // Verify that we are allowed to write to the shared memory.
+        // (This should always be the case, but when triaging allocation timeouts,
+        //  it's helpful to be certain the message was written correctly.)
+        let initial_header = SmcProtoHdr::from(
+            bar0_mapping.read_u32(map.vf_gdma_sriov_shared_reg_start as usize + 28),
+        );
+        if initial_header.owner_is_pf() {
+            anyhow::bail!(
+                "Cannot write VF message while PF owns channel (currently {})",
+                initial_header.msg_type()
+            );
+        }
+
         let dma_buffer = device
             .host_allocator()
             .allocate_dma_buffer(NUM_PAGES * PAGE_SIZE)?;
